@@ -1,0 +1,68 @@
+{
+  "theme": "dark",
+  "archetype": "Swiss & High-Contrast (Dark Aviation Variant)",
+  "colors": {
+    "background": "#0A0A0A",
+    "surface": "#141414",
+    "surface_hover": "#1E1E1E",
+    "border": "rgba(255, 255, 255, 0.1)",
+    "primary": "#007AFF",
+    "primary_hover": "#3395FF",
+    "text_main": "#FFFFFF",
+    "text_muted": "#8A8A8E",
+    "alert_red": "#FF3B30",
+    "alert_green": "#34C759",
+    "alert_yellow": "#FFCC00"
+  },
+  "typography": {
+    "font_family_headings": "Manrope",
+    "font_family_body": "IBM Plex Sans",
+    "font_family_data": "JetBrains Mono",
+    "h1": "text-2xl font-bold tracking-tight text-white",
+    "h2": "text-lg font-semibold tracking-tight text-white",
+    "body": "text-sm text-[#8A8A8E]",
+    "data_value": "text-2xl font-mono text-white tracking-tight leading-none",
+    "data_label": "text-[10px] font-bold uppercase tracking-[0.2em] text-[#8A8A8E]"
+  },
+  "layout": {
+    "main_container": "h-screen w-full flex flex-col md:flex-row overflow-hidden bg-[#0A0A0A] text-white",
+    "sidebar": "w-full md:w-80 lg:w-96 h-full border-r border-white/10 bg-[#0A0A0A] flex flex-col z-10 overflow-y-auto custom-scrollbar",
+    "map_area": "flex-1 h-full relative z-0",
+    "card": "p-6 border-b border-white/10 flex flex-col gap-5",
+    "data_grid": "grid grid-cols-2 gap-x-4 gap-y-6",
+    "map_dark_mode_filter": "invert(100%) hue-rotate(180deg) brightness(95%) contrast(90%)"
+  },
+  "components": {
+    "AircraftProfile": "Image of P51D at top (max-h-48 object-cover). Large registration N51ZW heading. Status badge next to it.",
+    "FlightDataCard": "Grid of telemetry data. Monospace fonts for numbers (JetBrains Mono). Include Altitude, Speed, Heading, Vertical Rate, Squawk.",
+    "AlertSettings": "Toggles using Shadcn Switch style. Blue accent (#007AFF). Includes Polling Interval select (10s to 5min).",
+    "EventLog": "Scrollable area at the bottom. Small text, monospace timestamps. Border-l-2 with status colors.",
+    "Map": "Leaflet map taking remaining space. Custom marker for plane (rotating based on heading).",
+    "StatusBadge": "Pill shape, text-xs uppercase bold, varying color based on status (Green=In Flight, Yellow=Signal Lost, Gray=On Ground).",
+    "ToggleSwitch": "A custom or Shadcn toggle. Active state bg-[#007AFF]."
+  },
+  "interactions": {
+    "hover": "Subtle background lightening on interactive list items.",
+    "toggles": "Smooth color transition to primary blue.",
+    "map_marker": "Smooth CSS transition for position and rotation to animate between polling updates. E.g., `transition: transform 1s linear`."
+  },
+  "images": {
+    "p51d_mustang": {
+      "url": "https://static.prod-images.emergentagent.com/jobs/c51e277c-316b-4cc1-bc96-2d1481ad6dfd/images/256233b755a90fe89c87adf7fb3eb2c48d144ad3075f3d9e2d63f047127f1282.png",
+      "description": "WWII P-51D Mustang fighter plane in flight",
+      "usage": "Aircraft Profile section in the sidebar hero image"
+    }
+  },
+  "instructions_to_main_agent": [
+    "Use react-leaflet and leaflet for the map. Apply standard OSM tiles but add a CSS class to the TileLayer or map container with the CSS filter provided in layout.map_dark_mode_filter to make it dark mode.",
+    "For the plane icon, use a custom divIcon in Leaflet with an inline SVG of a plane, and apply `transform: rotate(${heading}deg)` to it.",
+    "The data fetching from OpenSky Network should poll according to the selected interval. OpenSky free tier does not require auth but is rate-limited. N51ZW ICAO hex is a6616a. Endpoint: https://opensky-network.org/api/states/all?icao24=a6616a",
+    "The data format from OpenSky: state vector is an array. Index 1 is callsign, 2 is origin country, 5 is longitude, 6 is latitude, 7 is baro_altitude, 8 is on_ground, 9 is velocity, 10 is true_track (heading), 11 is vertical_rate, 14 is squawk.",
+    "Use standard JS/JSX files, NO TypeScript.",
+    "Install lucide-react if not present, for icons.",
+    "Implement Web Notifications API for browser push alerts (request permission on load or setting toggle).",
+    "For audio alarm, use an HTMLAudioElement with a standard alert beep sound (can use a simple data URI for a beep).",
+    "Follow the sidebar layout strictly. Use JetBrains Mono for data numbers.",
+    "Include data-testid on toggles, buttons, and data elements."
+  ]
+}
