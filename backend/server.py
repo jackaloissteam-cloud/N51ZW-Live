@@ -373,7 +373,7 @@ async def update_settings(update: SettingsUpdate) -> SettingsModel:
         new_data[k] = v
     if "poll_interval_seconds" in new_data:
         new_data["poll_interval_seconds"] = max(
-            10, min(int(new_data["poll_interval_seconds"]), 600)
+            10, min(int(new_data["poll_interval_seconds"]), 300)
         )
     await settings_coll.update_one(
         {"id": "singleton"}, {"$set": new_data}, upsert=True
@@ -396,7 +396,7 @@ async def _safe_process() -> None:
 
 
 def reschedule_job(interval_seconds: int) -> None:
-    interval_seconds = max(10, min(int(interval_seconds), 600))
+    interval_seconds = max(10, min(int(interval_seconds), 300))
     if scheduler.get_job("poll_opensky"):
         scheduler.reschedule_job(
             "poll_opensky", trigger=IntervalTrigger(seconds=interval_seconds)
