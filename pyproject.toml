@@ -1,2 +1,6 @@
+[project]
+name = "n51zw-live"
+version = "0.1.0"
+
 [project.scripts]
 app = "backend.server:app"
