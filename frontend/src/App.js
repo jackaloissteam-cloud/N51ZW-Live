@@ -1,7 +1,9 @@
 import React, { useEffect, useRef, useState, useCallback } from "react";
 import axios from "axios";
+import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { MapContainer, TileLayer, Polyline, Marker, useMap } from "react-leaflet";
 import L from "leaflet";
+import { QRCodeSVG } from "qrcode.react";
 import {
   Plane,
   Activity,
@@ -16,7 +18,12 @@ import {
   Signal,
   Volume2,
   VolumeX,
+  Share2,
+  Copy,
+  Check,
+  X,
 } from "lucide-react";
+import ShareView from "./views/ShareView";
 import "./App.css";
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
@@ -146,15 +153,30 @@ const Switch = ({ on, onChange, testid }) => (
 );
 
 // --- Main App -------------------------------------------------------------
-function App() {
+function Dashboard() {
   const [state, setState] = useState(null);
   const [trail, setTrail] = useState([]);
   const [events, setEvents] = useState([]);
   const [settings, setSettings] = useState(null);
   const [loading, setLoading] = useState(false);
   const [audioOn, setAudioOn] = useState(true);
+  const [shareOpen, setShareOpen] = useState(false);
+  const [copied, setCopied] = useState(false);
   const lastEventIdRef = useRef(null);
   const settingsRef = useRef(null);
+
+  const shareUrl =
+    typeof window !== "undefined" ? `${window.location.origin}/share` : "/share";
+
+  const copyShareUrl = async () => {
+    try {
+      await navigator.clipboard.writeText(shareUrl);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1800);
+    } catch (e) {
+      /* clipboard might be blocked */
+    }
+  };
 
   // keep settings ref fresh for the events watcher
   useEffect(() => {
@@ -463,15 +485,27 @@ function App() {
               >
                 {statusLabel}
               </div>
-              <button
-                onClick={pollNow}
-                className="btn-base"
-                style={{ padding: "4px 10px", fontSize: 10 }}
-                data-testid="refresh-btn"
-              >
-                <RefreshCw size={11} className={loading ? "prop-spin" : ""} />
-                Refresh
-              </button>
+              <div style={{ display: "flex", gap: 6 }}>
+                <button
+                  onClick={() => setShareOpen(true)}
+                  className="btn-base"
+                  style={{ padding: "4px 10px", fontSize: 10 }}
+                  data-testid="share-open-btn"
+                  title="Live-Link teilen"
+                >
+                  <Share2 size={11} />
+                  Share
+                </button>
+                <button
+                  onClick={pollNow}
+                  className="btn-base"
+                  style={{ padding: "4px 10px", fontSize: 10 }}
+                  data-testid="refresh-btn"
+                >
+                  <RefreshCw size={11} className={loading ? "prop-spin" : ""} />
+                  Refresh
+                </button>
+              </div>
             </div>
             <div
               style={{
@@ -922,7 +956,192 @@ function App() {
           </div>
         )}
       </main>
+
+      {/* SHARE MODAL */}
+      {shareOpen && (
+        <div
+          onClick={() => setShareOpen(false)}
+          data-testid="share-modal"
+          style={{
+            position: "fixed",
+            inset: 0,
+            zIndex: 1000,
+            background: "rgba(5, 6, 8, 0.78)",
+            backdropFilter: "blur(8px)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: 20,
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="card-aviation"
+            style={{
+              maxWidth: 460,
+              width: "100%",
+              padding: 28,
+              position: "relative",
+              border: "1px solid var(--accent-blue-glow)",
+            }}
+          >
+            <button
+              onClick={() => setShareOpen(false)}
+              className="btn-base"
+              data-testid="share-close-btn"
+              style={{
+                position: "absolute",
+                top: 12,
+                right: 12,
+                padding: "5px 8px",
+                fontSize: 11,
+              }}
+              aria-label="Schließen"
+            >
+              <X size={12} />
+            </button>
+            <div
+              style={{
+                fontSize: 10,
+                letterSpacing: "0.28em",
+                color: "var(--accent-blue)",
+                fontWeight: 700,
+                marginBottom: 6,
+              }}
+            >
+              SHARE · READ-ONLY LIVE LINK
+            </div>
+            <div
+              style={{
+                fontSize: 22,
+                fontWeight: 700,
+                color: "var(--text-primary)",
+                letterSpacing: "0.02em",
+                marginBottom: 4,
+              }}
+            >
+              N51ZW Live teilen
+            </div>
+            <div
+              style={{
+                fontSize: 12,
+                color: "var(--text-muted)",
+                marginBottom: 22,
+                lineHeight: 1.5,
+              }}
+            >
+              Mit diesem Link sehen Freunde, Spotter und Mustang-Enthusiasten
+              den Tracker — ohne Settings, ohne Test-Buttons, nur Karte +
+              Live-Telemetrie. QR-Code scannen am Smartphone.
+            </div>
+
+            {/* QR Code */}
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "center",
+                padding: 18,
+                background: "#fff",
+                borderRadius: 12,
+                marginBottom: 18,
+              }}
+              data-testid="share-qr"
+            >
+              <QRCodeSVG
+                value={shareUrl}
+                size={196}
+                bgColor="#ffffff"
+                fgColor="#050608"
+                level="M"
+                includeMargin={false}
+              />
+            </div>
+
+            {/* URL row */}
+            <div
+              style={{
+                display: "flex",
+                gap: 8,
+                alignItems: "center",
+                marginBottom: 14,
+              }}
+            >
+              <input
+                value={shareUrl}
+                readOnly
+                onClick={(e) => e.target.select()}
+                data-testid="share-url-input"
+                style={{
+                  flex: 1,
+                  background: "rgba(255,255,255,0.04)",
+                  border: "1px solid var(--border-strong)",
+                  borderRadius: 8,
+                  color: "var(--text-primary)",
+                  fontFamily: "JetBrains Mono, monospace",
+                  fontSize: 11,
+                  padding: "9px 12px",
+                  outline: "none",
+                  letterSpacing: "0.02em",
+                }}
+              />
+              <button
+                onClick={copyShareUrl}
+                className={`btn-base ${copied ? "btn-primary" : ""}`}
+                style={{ padding: "9px 14px", fontSize: 11 }}
+                data-testid="share-copy-btn"
+              >
+                {copied ? <Check size={12} /> : <Copy size={12} />}
+                {copied ? "Kopiert" : "Kopieren"}
+              </button>
+            </div>
+
+            <a
+              href={shareUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="btn-base"
+              style={{
+                width: "100%",
+                fontSize: 12,
+                padding: "10px 14px",
+                textDecoration: "none",
+              }}
+              data-testid="share-open-link"
+            >
+              <Share2 size={12} />
+              Live-View öffnen
+            </a>
+
+            <div
+              style={{
+                marginTop: 16,
+                fontSize: 10,
+                color: "var(--text-muted)",
+                letterSpacing: "0.04em",
+                lineHeight: 1.6,
+                fontFamily: "JetBrains Mono, monospace",
+              }}
+            >
+              Tipp · Tweet bei Takeoff lässt sich später hier andocken
+              (Mastodon / Bluesky / Telegram).
+            </div>
+          </div>
+        </div>
+      )}
     </div>
+  );
+}
+
+// --- Router shell ---------------------------------------------------------
+function App() {
+  return (
+    <BrowserRouter>
+      <Routes>
+        <Route path="/share" element={<ShareView />} />
+        <Route path="/share/:tail" element={<ShareView />} />
+        <Route path="/" element={<Dashboard />} />
+      </Routes>
+    </BrowserRouter>
   );
 }
 

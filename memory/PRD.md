@@ -43,11 +43,12 @@ FR24-style live tracker for the 1944 P-51D Mustang **N51ZW** (ICAO24 `a6616a`). 
 - [x] Custom SVG Mustang hero with vapor trail + star marking (no external image dep)
 - [x] STANDBY overlay when no live position
 - [x] 26/26 backend tests passed (testing_agent_v3 iteration_1.json)
+- [x] **Share Live Link** — read-only public route `/share` with full-screen map + minimal floating telemetry/status overlay; QR-code + copy-link modal in Dashboard sidebar (qrcode.react)
 
 ## Prioritized Backlog
 ### P1 — Public / shareability
-- [ ] **Share live link** — read-only public URL for friends/family/spotters
-- [ ] Auto-tweet/post when N51ZW takes off (Twitter/X, Mastodon, or Bluesky)
+- [x] ~~Share live link~~ ✅ done
+- [ ] Auto-tweet/post when N51ZW takes off (Mastodon / Bluesky / Telegram — needs user choice + token)
 
 ### P1 — Reliability
 - [ ] Service Worker push notifications (work with tab closed)
