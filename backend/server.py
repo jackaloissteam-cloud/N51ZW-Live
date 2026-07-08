@@ -35,11 +35,16 @@ AIRCRAFT_YEAR = os.environ.get("AIRCRAFT_YEAR", "1944")
 
 OPENSKY_USER = os.environ.get("OPENSKY_USERNAME", "").strip()
 OPENSKY_PASS = os.environ.get("OPENSKY_PASSWORD", "").strip()
+OPENSKY_CLIENT_ID = os.environ.get("OPENSKY_CLIENT_ID", "").strip()
+OPENSKY_CLIENT_SECRET = os.environ.get("OPENSKY_CLIENT_SECRET", "").strip()
 OPENSKY_URL = "https://opensky-network.org/api/states/all"
+OPENSKY_TOKEN_URL = "https://auth.opensky-network.org/auth/realms/opensky-network/protocol/openid-connect/token"
 
-# Speed threshold (knots) below which we consider the aircraft "on ground" if velocity is missing
 TAKEOFF_SPEED_KNOTS = 40
-GROUND_ALT_M = 100  # if barometric altitude reads < 100m above ground from on_ground flag, treat as landed
+GROUND_ALT_M = 100
+
+# OAuth2 token cache (in-memory)
+_oauth2_cache = {"token": None, "expires_at": 0.0}
 
 # --- MongoDB ----------------------------------------------------------------
 mongo_url = os.environ["MONGO_URL"]
@@ -79,7 +84,7 @@ class AircraftState(BaseModel):
     last_position: Optional[str] = None
 
     # auth mode used for last poll
-    auth_mode: Literal["basic", "anonymous", "unknown"] = "unknown"
+    auth_mode: Literal["oauth2", "basic", "anonymous", "unknown"] = "unknown"
 
 
 class FlightEvent(BaseModel):
@@ -147,22 +152,70 @@ async def list_events(limit: int = 50) -> List[FlightEvent]:
 
 
 # --- OpenSky polling --------------------------------------------------------
+async def _get_oauth2_token() -> Optional[str]:
+    """Fetch or reuse cached OAuth2 client_credentials access token."""
+    import time
+    now = time.time()
+    # reuse cached token if still valid (with 30s safety margin)
+    if _oauth2_cache["token"] and _oauth2_cache["expires_at"] - 30 > now:
+        return _oauth2_cache["token"]
+    if not (OPENSKY_CLIENT_ID and OPENSKY_CLIENT_SECRET):
+        return None
+    try:
+        async with httpx.AsyncClient(timeout=15.0) as cli:
+            r = await cli.post(
+                OPENSKY_TOKEN_URL,
+                data={
+                    "grant_type": "client_credentials",
+                    "client_id": OPENSKY_CLIENT_ID,
+                    "client_secret": OPENSKY_CLIENT_SECRET,
+                },
+                headers={"Content-Type": "application/x-www-form-urlencoded"},
+            )
+        if r.status_code != 200:
+            logger.warning(f"OpenSky OAuth2 token fetch failed: HTTP {r.status_code} · {r.text[:200]}")
+            return None
+        payload = r.json()
+        token = payload.get("access_token")
+        expires_in = int(payload.get("expires_in") or 1800)
+        _oauth2_cache["token"] = token
+        _oauth2_cache["expires_at"] = now + expires_in
+        logger.info(f"🔐 OpenSky OAuth2 token acquired (expires in {expires_in}s)")
+        return token
+    except Exception as e:
+        logger.error(f"OAuth2 token request error: {e}")
+        return None
+
+
 async def fetch_opensky() -> tuple[Optional[dict], str]:
-    """Returns (state_dict_or_none, auth_mode)."""
+    """Returns (state_dict_or_none, auth_mode). Tries OAuth2 → Basic → Anonymous."""
     params = {"icao24": ICAO24}
     headers = {"User-Agent": "n51zw-tracker/1.0"}
     auth_mode = "anonymous"
-    auth = None
-    if OPENSKY_USER and OPENSKY_PASS:
-        token = base64.b64encode(f"{OPENSKY_USER}:{OPENSKY_PASS}".encode()).decode()
-        headers["Authorization"] = f"Basic {token}"
+
+    # 1) Try OAuth2 client_credentials
+    if OPENSKY_CLIENT_ID and OPENSKY_CLIENT_SECRET:
+        token = await _get_oauth2_token()
+        if token:
+            headers["Authorization"] = f"Bearer {token}"
+            auth_mode = "oauth2"
+
+    # 2) Fallback to Basic auth
+    if auth_mode == "anonymous" and OPENSKY_USER and OPENSKY_PASS:
+        token_b64 = base64.b64encode(f"{OPENSKY_USER}:{OPENSKY_PASS}".encode()).decode()
+        headers["Authorization"] = f"Basic {token_b64}"
         auth_mode = "basic"
 
     try:
         async with httpx.AsyncClient(timeout=15.0) as cli:
             r = await cli.get(OPENSKY_URL, params=params, headers=headers)
-        if r.status_code == 401 and auth_mode == "basic":
-            logger.warning("OpenSky basic auth failed → falling back to anonymous")
+        # If auth-mode fails, cascade to anonymous
+        if r.status_code == 401 and auth_mode in ("oauth2", "basic"):
+            logger.warning(f"OpenSky {auth_mode} failed (401) → falling back to anonymous")
+            # invalidate token cache on 401
+            if auth_mode == "oauth2":
+                _oauth2_cache["token"] = None
+                _oauth2_cache["expires_at"] = 0.0
             async with httpx.AsyncClient(timeout=15.0) as cli:
                 r = await cli.get(OPENSKY_URL, params=params, headers={"User-Agent": "n51zw-tracker/1.0"})
             auth_mode = "anonymous"
@@ -171,7 +224,6 @@ async def fetch_opensky() -> tuple[Optional[dict], str]:
         states = data.get("states") or []
         if not states:
             return None, auth_mode
-        # state vector format: https://openskynetwork.github.io/opensky-api/rest.html#response
         row = states[0]
         return {
             "icao24": row[0],
